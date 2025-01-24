@@ -1,0 +1,12 @@
+*.pyc
+__pycache__/
+.env
+*.pkl
+*.ipynb
+evaluation.py
+offline_data_preparation.py
+train.py
+test.py
+*.csv
+*.out
+static

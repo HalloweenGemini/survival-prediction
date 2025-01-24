@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>NEDIS Survival Estimation Demo</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist@latest"></script>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <img src="{{ url_for('static', filename='logo.png') }}" width="300" height="38" alt="Logo" class="my-logo" />
+  </div>
+  <!-- 언어 스위치 버튼 -->
+  <div style="float:right; margin:10px;">
+    <button style="background-color: #4CAF50; color: white; border: none; padding: 10px 15px; margin: 0 5px; cursor: pointer; border-radius: 5px;" onclick="switchLanguage('ko')">한국어</button>
+    <button style="background-color: #4CAF50; color: white; border: none; padding: 10px 15px; margin: 0 5px; cursor: pointer; border-radius: 5px;" onclick="switchLanguage('en')">English</button>
+  </div>
+</header>
+
+<div class="container">
+  <!-- 사이드바 -->
+  <aside class="sidebar">
+    <h2 class="i18n" data-ko="변수 입력" data-en="Input Variables">변수 입력</h2>
+    <form id="predictForm">
+      <div class="form-group">
+        <label class="i18n" data-ko="나이(Age)" data-en="Age">나이(Age)</label>
+        <input type="number" id="ageInput" value="70">
+      </div>
+      <div class="form-group">
+        <label class="i18n" data-ko="성별(Sexuality)" data-en="Sex">성별(Sexuality)</label>
+        <select id="sexInput">
+          <option value="M" class="i18n" data-ko="남성(M)" data-en="Male(M)">남성(M)</option>
+          <option value="F" class="i18n" data-ko="여성(F)" data-en="Female(F)">여성(F)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="i18n" data-ko="반응(Response)" data-en="Response">반응(Response)</label>
+        <select id="respInput">
+          <option value="A" class="i18n" data-ko="Alert(A)" data-en="Alert(A)">Alert(A)</option>
+          <option value="V" class="i18n" data-ko="Verbal(V)" data-en="Verbal(V)">Verbal(V)</option>
+          <option value="P" class="i18n" data-ko="Painful(P)" data-en="Painful(P)">Painful(P)</option>
+          <option value="U" class="i18n" data-ko="Unresponsive(U)" data-en="Unresponsive(U)">Unresponsive(U)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="i18n" data-ko="수축기 혈압(SBP)" data-en="SBP">수축기 혈압(SBP)</label>
+        <input type="number" id="sbpInput" value="120">
+      </div>
+      <div class="form-group">
+        <label class="i18n" data-ko="이완기 혈압(DBP)" data-en="DBP">이완기 혈압(DBP)</label>
+        <input type="number" id="dbpInput" value="80">
+      </div>
+      <div class="form-group">
+        <label class="i18n" data-ko="맥박수(Pulse)" data-en="Pulse">맥박수(Pulse)</label>
+        <input type="number" id="pulseInput" value="70">
+      </div>
+      <div class="form-group">
+        <label class="i18n" data-ko="호흡수(Breath)" data-en="Breath">호흡수(Breath)</label>
+        <input type="number" id="breathInput" value="15">
+      </div>
+      <div class="form-group">
+        <label class="i18n" data-ko="체온(Temp)" data-en="Temperature">체온(Temp)</label>
+        <input type="number" step="0.1" id="tempInput" value="36.5">
+      </div>
+      <div class="form-group">
+        <label class="i18n" data-ko="산소포화도(SpO2)" data-en="SpO2">산소포화도(SpO2)</label>
+        <input type="number" id="spo2Input" value="98">
+      </div>
+
+      <button type="submit" class="predict-btn i18n" data-ko="예측하기" data-en="Predict">예측하기</button>
+    </form>
+    <div class="predict-result" id="predictResult"></div>
+  </aside>
+
+  <main class="main-content">
+    <h2 class="i18n" data-ko="위험도 평가" data-en="Risk Assessment">위험도 평가</h2>
+    <p class="subtext">
+      <span class="i18n" data-ko="예측된 생존확률은 " data-en="Estimated survival rate is ">예측된 생존확률은 </span>
+      <span id="survivalRateSpan">--</span>
+      <span class="i18n" data-ko="% 입니다." data-en="% ."> % 입니다.</span>
+    </p>
+
+    <h2 class="i18n" data-ko="통계" data-en="Statistics">통계</h2>
+
+    <!-- 수평 탭 메뉴 -->
+    <ul class="nav-tabs">
+      <li class="nav-item active i18n" data-ko="분포" data-en="Distribution" onclick="openTab(event, 'distTab')">분포</li>
+      <li class="nav-item i18n" data-ko="기여도" data-en="Contribution" onclick="openTab(event, 'shapTab')">기여도</li>
+    </ul>
+
+    <!-- 탭 내용 영역 -->
+    <div class="tab-content">
+      <!-- 분포 탭 -->
+      <div id="distTab" class="tab-pane active">
+        <h3 class="i18n" data-ko="수치형(KDE)" data-en="Numeric (KDE)">수치형(KDE)</h3>
+        <div class="chart-container">
+          <div class="chart-item">
+            <div id="chart-PTMIHIBP" class="dist-chart"></div>
+          </div>
+          <div class="chart-item">
+            <div id="chart-PTMILOBP" class="dist-chart"></div>
+          </div>
+          <div class="chart-item">
+            <div id="chart-PTMIPULS" class="dist-chart"></div>
+          </div>
+          <div class="chart-item">
+            <div id="chart-PTMIBRTH" class="dist-chart"></div>
+          </div>
+          <div class="chart-item">
+            <div id="chart-PTMIBDHT" class="dist-chart"></div>
+          </div>
+          <div class="chart-item">
+            <div id="chart-PTMIVOXS" class="dist-chart"></div>
+          </div>
+        </div>
+
+        <h3 class="i18n" data-ko="범주형(Bar)" data-en="Categorical (Bar)">범주형(Bar)</h3>
+        <div class="chart-container">
+          <div class="chart-item">
+            <div id="chart-PTMIBRTD" class="dist-chart"></div>
+          </div>
+          <div class="chart-item">
+            <div id="chart-PTMISEXX" class="dist-chart"></div>
+          </div>
+          <div class="chart-item">
+            <div id="chart-PTMIRESP" class="dist-chart"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 기여도 탭 내용 (SHAP) -->
+      <div id="shapTab" class="tab-pane">
+        <div id="shapChart" style="width:600px; height:400px; border:1px solid #ccc;"></div>
+        <div id="varDescription" style="margin-left: 20px; width: 300px;">
+          <h3 class="i18n" data-ko="변수 설명" data-en="Variable Description">변수 설명</h3>
+          <ul>
+            <li><strong>PTMIHIBP</strong>: <span class="i18n" data-ko="수축기 혈압" data-en="Systolic Blood Pressure">수축기 혈압</span></li>
+            <li><strong>PTMILOBP</strong>: <span class="i18n" data-ko="이완기 혈압" data-en="Diastolic Blood Pressure">이완기 혈압</span></li>
+            <li><strong>PTMIPULS</strong>: <span class="i18n" data-ko="맥박" data-en="Pulse">맥박</span></li>
+            <li><strong>PTMIBRTH</strong>: <span class="i18n" data-ko="호흡수" data-en="Respiratory Rate">호흡수</span></li>
+            <li><strong>PTMIBDHT</strong>: <span class="i18n" data-ko="체온" data-en="Body Temperature">체온</span></li>
+            <li><strong>PTMIVOXS</strong>: <span class="i18n" data-ko="산소포화도" data-en="Oxygen Saturation">산소포화도</span></li>
+            <li><strong>PTMIBRTD</strong>: <span class="i18n" data-ko="연령코드 (1~26)" data-en="Age Code (1-26)">연령코드 (1~26)</span></li>
+            <li><strong>PTMISEXX</strong>: <span class="i18n" data-ko="성별코드 (1=남, 2=여)" data-en="Sex Code (1=Male, 2=Female)">성별코드 (1=남, 2=여)</span></li>
+            <li><strong>PTMIRESP</strong>: 
+              <span class="i18n" data-ko="반응 (AVPU)" data-en="Response (AVPU)">반응 (AVPU)</span>
+              <ul>
+                <li><span class="i18n" data-ko="A: 명료 (Alert)" data-en="A: Alert">A: 명료 (Alert)</span></li>
+                <li><span class="i18n" data-ko="V: 언어반응 (Verbal)" data-en="V: Verbal response">V: 언어반응 (Verbal)</span></li>
+                <li><span class="i18n" data-ko="P: 통증반응 (Painful)" data-en="P: Pain response">P: 통증반응 (Painful)</span></li>
+                <li><span class="i18n" data-ko="U: 무반응 (Unresponsive)" data-en="U: Unresponsive">U: 무반응 (Unresponsive)</span></li>
+              </ul>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+    /* script.js */
+
+  /* 0) 상수 정의 */
+
+  // 수치형/범주형 변수
+  const numericVars = ["PTMIHIBP","PTMILOBP","PTMIPULS","PTMIBRTH","PTMIBDHT","PTMIVOXS"];
+  const catVars     = ["PTMIBRTD","PTMISEXX","PTMIRESP"];
+
+  // 변수별 한글/영문 축 레이블
+  const LABELS = {
+    "PTMIHIBP": { ko:"수축기 혈압", en:"Systolic BP" },
+    "PTMILOBP": { ko:"이완기 혈압", en:"Diastolic BP" },
+    "PTMIPULS": { ko:"맥박",     en:"Pulse" },
+    "PTMIBRTH": { ko:"호흡수",   en:"Breath Rate" },
+    "PTMIBDHT": { ko:"체온",     en:"Temperature" },
+    "PTMIVOXS": { ko:"산소포화도", en:"SpO2" },
+    "PTMIBRTD": { ko:"연령코드",  en:"Age Code" },
+    "PTMISEXX": { ko:"성별코드",  en:"Sex Code" },
+    "PTMIRESP": { ko:"반응(AVPU)", en:"Response(AVPU)" }
+  };
+
+  /* PTMIBRTD (연령코드) 역매핑:
+    예측 시 정수(10) -> 바 데이터엔 "10.0" */
+  function invMapPTMIBRTD(intCode){
+    return String(intCode) + ".0"; 
+  }
+
+  /* PTMIRESP (A/V/P/U) 역매핑:
+    예: 0->"A", 1->"V", 2->"P", 3->"U"
+    (bar_data에 ["A","V","P","U"]가 있다고 가정) */
+  function invMapPTMIRESP(intCode){
+    const arr = ["A","V","P","U"];
+    return arr[intCode] || "A"; // fallback
+  }
+
+  /* 1) 언어 전환: 한글/영어 */
+  function switchLanguage(lang){
+    // (A) .i18n 문구 교체
+    document.querySelectorAll('.i18n').forEach(el => {
+      if(el.dataset[lang]){
+        el.textContent = el.dataset[lang];
+      }
+    });
+
+    // (B) Plotly 차트 재-그리기(축 레이블 등)
+    reDrawAllCharts(lang);
+
+    // (C) SHAP 차트 재-그리기
+    if (window.lastShapValues) {
+      drawShapBar(window.lastShapValues, lang);
+    }
+  }
+
+  /* 2) 탭 전환 (분포/기여도) */
+  function openTab(evt, tabId){
+    // 숨기기
+    const panes = document.getElementsByClassName('tab-pane');
+    for(let i=0;i<panes.length;i++){
+      panes[i].style.display='none';
+      panes[i].classList.remove('active');
+    }
+    // nav-item 비활성화
+    const navItems = document.getElementsByClassName('nav-item');
+    for(let i=0;i<navItems.length;i++){
+      navItems[i].classList.remove('active');
+    }
+    // 현재 탭 열기
+    document.getElementById(tabId).style.display='block';
+    document.getElementById(tabId).classList.add('active');
+    evt.currentTarget.classList.add('active');
+  }
+
+  /* 3) 차트 재-그리기 (lang에 맞춰) */
+  function reDrawAllCharts(lang){
+    // 수치형(KDE)
+    numericVars.forEach(varName=>{
+      fetch(`/kde_data/${varName}`)
+      .then(r=>r.json())
+      .then(kdeData => {
+        drawKde(varName, kdeData, lang);
+      });
+    });
+    // 범주형(Bar)
+    catVars.forEach(varName=>{
+      fetch(`/bar_data/${varName}`)
+      .then(r=>r.json())
+      .then(barData => {
+        drawBar(varName, barData, lang);
+      });
+    });
+  }
+
+  /* 4) drawKde */
+  function drawKde(varName, kdeData, lang){
+    // 축 레이블
+    let xTitle = LABELS[varName][lang] || varName;
+
+    // trace
+    let trace = {
+      x: kdeData.x,
+      y: kdeData.y,
+      mode:'lines',
+      line:{ color:'#66b2ff', shape:'spline' },
+      showlegend:false
+    };
+
+    // x축 range
+    let xRange=[null,null];
+    switch(varName){
+      case "PTMIHIBP": xRange=[0,250]; break;
+      case "PTMILOBP": xRange=[0,150]; break;
+      case "PTMIPULS": xRange=[0,200]; break;
+      case "PTMIBRTH": xRange=[0,40];  break;
+      case "PTMIBDHT": xRange=[15,40]; break;
+      case "PTMIVOXS": xRange=[80,100];break;
+    }
+
+    let layout = {
+      margin:{l:0,r:0,t:0,b:30},
+      xaxis:{
+        title: xTitle,
+        range: xRange
+      },
+      yaxis:{
+        visible:false
+      }
+    };
+
+    Plotly.newPlot('chart-' + varName, [trace], layout, { locale:'en' });
+  }
+
+  /* 5) drawBar */
+  function drawBar(varName, barData, lang){
+    let xTitle = LABELS[varName][lang] || varName;
+    let trace={
+      x: barData.categories,
+      y: barData.counts,
+      type:'bar',
+      marker:{ color:'#ffa600' },
+      showlegend:false
+    };
+    let layout={
+      margin:{l:40,r:20,t:20,b:40},
+      xaxis:{ title:xTitle },
+      yaxis:{}
+    };
+    Plotly.newPlot('chart-'+varName, [trace], layout, { locale:'en' });
+  }
+
+  /* 6) reloadBarWithHighlight (예측 후, 특정 bar만 빨간색) */
+  function reloadBarWithHighlight(varName, catVal){
+    fetch(`/bar_data/${varName}`)
+      .then(r=>r.json())
+      .then(data=>{
+        let cats=data.categories; // e.g. ["1.0","2.0","3.0",...] or ["A","V","P","U"]
+        let cnts=data.counts;
+        let colorArr=cats.map(()=> '#ffa600');
+
+        let catString;
+        if(varName==="PTMIBRTD"){
+          catString = invMapPTMIBRTD(catVal); // ex) 10 -> "10.0"
+        } else if(varName==="PTMIRESP"){
+          catString = invMapPTMIRESP(catVal); // ex) 2 -> "P"
+        } else {
+          catString = String(catVal);
+        }
+
+        let idx = cats.indexOf(catString);
+        if(idx>=0){
+          colorArr[idx] = 'red';
+        }
+
+        let layout={
+          margin:{l:40,r:20,t:20,b:40},
+          xaxis:{ title: LABELS[varName]['ko'] }, 
+          yaxis:{}
+        };
+        let trace={
+          x: cats,
+          y: cnts,
+          type:'bar',
+          marker:{ color: colorArr }
+        };
+        Plotly.newPlot('chart-'+varName, [trace], layout, { locale:'en' });
+      });
+  }
+
+  /* 7) 수직선 표시 (수치형 그래프) */
+  function addVerticalLine(divId, userVal){
+    Plotly.relayout(divId, {
+      shapes:[{
+        type:'line',
+        x0:userVal, x1:userVal,
+        yref:'paper',
+        y0:0, y1:1,
+        line:{ color:'red', width:2, dash:'line' }
+      }]
+    });
+  }
+
+  /* 8) SHAP bar chart */
+  function drawShapBar(shapVals, lang='ko'){
+    let featNames=Object.keys(shapVals);
+    let featVals=Object.values(shapVals);
+    let colors=featVals.map(v=> v>=0?'tomato':'steelblue');
+    let trace={
+      x: featVals,
+      y: featNames.map(fn => LABELS[fn][lang] || fn), // 여기서 언어에 따른 라벨 사용
+      type:'bar',
+      orientation:'h',
+      marker:{ color:colors },
+      showlegend:false
+    };
+    let layout={
+      margin:{l:120,r:20,t:20,b:40},
+      xaxis:{ title: lang === 'ko' ? 'SHAP 값' : 'SHAP value' },
+      yaxis:{ automargin:true }
+    };
+    Plotly.newPlot('shapChart', [trace], layout, { locale: lang });
+
+    // 마지막 SHAP 값 저장
+    window.lastShapValues = shapVals;
+  }
+
+  /* 9) 페이지 로드 시 */
+  document.addEventListener('DOMContentLoaded', function(){
+    // 디폴트 언어: ko
+    reDrawAllCharts('ko');
+
+    // 탭 디폴트
+    document.getElementById('distTab').style.display='block';
+
+    // 예측 폼
+    const form = document.getElementById('predictForm');
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      let Age = parseFloat(document.getElementById('ageInput').value||'0');
+      let SBP = parseFloat(document.getElementById('sbpInput').value||'0');
+      let DBP = parseFloat(document.getElementById('dbpInput').value||'0');
+      let Pulse = parseFloat(document.getElementById('pulseInput').value||'0');
+      let Breath= parseFloat(document.getElementById('breathInput').value||'0');
+      let Temperature= parseFloat(document.getElementById('tempInput').value||'0');
+      let SpO2= parseFloat(document.getElementById('spo2Input').value||'0');
+      let Sexuality= document.getElementById('sexInput').value;
+      let Response= document.getElementById('respInput').value;
+
+      fetch('/predict',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({Age,SBP,DBP,Pulse,Breath,Temperature,SpO2,Sexuality,Response})
+      })
+      .then(r=>r.json())
+      .then(result=>{
+        // 생존확률 표시
+        document.getElementById('survivalRateSpan').textContent = result.survival_rate;
+        document.getElementById('predictResult').textContent = 
+          `예측된 생존 확률: ${result.survival_rate}%`;
+
+        // userVals -> numeric / cat
+        const numericVals = result.userVals.numeric;
+        const catVals = result.userVals.categorical;
+
+        // 수치형 -> 수직선
+        for(let vName in numericVals){
+          addVerticalLine('chart-'+vName, numericVals[vName]);
+        }
+        // 범주형 -> re-draw with highlight
+        for(let vName in catVals){
+          reloadBarWithHighlight(vName, catVals[vName]);
+        }
+        // SHAP
+        drawShapBar(result.shap_values, document.documentElement.lang); // 현재 언어 전달
+      })
+      .catch(err=>console.error(err));
+    });
+  });
+
+//     /* 다국어 전환 */
+//   function switchLanguage(lang){
+//     // .i18n를 전부 찾아서 data-ko, data-en 중 해당 언어 텍스트로 교체
+//     const els = document.querySelectorAll('.i18n');
+//     els.forEach(el => {
+//       // el.dataset.ko or el.dataset.en
+//       if(el.dataset[lang]){
+//         el.textContent = el.dataset[lang];
+//       }
+//     });
+// }
+
+//   /* 탭 전환 함수 */
+//   function openTab(evt, tabId) {
+//     // 모든 tab-pane 숨기기
+//     const panes = document.getElementsByClassName('tab-pane');
+//     for (let i=0; i<panes.length; i++) {
+//       panes[i].style.display = 'none';
+//       panes[i].classList.remove('active');
+//     }
+//     // 모든 nav-item 비활성화
+//     const navItems = document.getElementsByClassName('nav-item');
+//     for (let i=0; i<navItems.length; i++){
+//       navItems[i].classList.remove('active');
+//     }
+//     // 현재 탭 열기
+//     document.getElementById(tabId).style.display = 'block';
+//     document.getElementById(tabId).classList.add('active');
+//     evt.currentTarget.classList.add('active');
+//   }
+
+//   // 페이지 로드 시, default 탭=분포
+//   document.addEventListener('DOMContentLoaded', function(){
+//     document.getElementById('distTab').style.display = 'block';
+
+//     // TODO: 분포 차트 로딩(loadKdeChart, loadBarChart)
+//     // 예측 폼: predictForm.addEventListener('submit', ...)
+//     // 예측 결과 → survivalRateSpan.innerText = result.survival_rate
+//   });
+//   // For PTMIBRTD: "1.0","2.0",..., "26.0"
+//   function invMapPTMIBRTD(intCode){
+//     // just convert "10" -> "10.0"
+//     return String(intCode) + ".0";
+//   }
+
+//   // For PTMIRESP: ["-","A","P","U","V"]
+//   // Suppose the training mapping = { '-':0, 'A':1, 'P':2, 'U':3, 'V':4 }
+//   // Then the inverse is:
+//   function invMapPTMIRESP(intCode){
+//     // 0->"-", 1->"A", 2->"P", 3->"U", 4->"V"
+//     // but you said earlier "A=0, V=1, P=2, U=3" => that conflicts with the bar_data order.
+//     // We must unify. Let's assume the bar_data is the source of truth:
+//     // index=0->"-",1->"A",2->"P",3->"U",4->"V"
+//     // so intCode => array[intCode].
+//     const arr = ["-","A","P","U","V"];
+//     return arr[intCode] || "-";
+//   }
+//   // 각 변수에 대한 사람 친화 라벨
+//   const HUMAN_LABELS = {
+//     "PTMIHIBP": "수축기 혈압",
+//     "PTMILOBP": "이완기 혈압",
+//     "PTMIPULS": "맥박",
+//     "PTMIBRTH": "호흡수",
+//     "PTMIBDHT": "체온",
+//     "PTMIVOXS": "산소포화도",
+//     "PTMIBRTD": "연령코드",
+//     "PTMISEXX": "성별코드",
+//     "PTMIRESP": "반응(AVPU)"
+//   };
+
+//   // 수치형 vs 범주형 목록
+//   const numericVars = ["PTMIHIBP","PTMILOBP","PTMIPULS","PTMIBRTH","PTMIBDHT","PTMIVOXS"];
+//   const catVars = ["PTMIBRTD","PTMISEXX","PTMIRESP"]; // PTMIRESP도 추가하려면
+
+//   document.addEventListener('DOMContentLoaded', function(){
+//     // 1) 자동으로 차트 로드
+//     numericVars.forEach(v=> loadKdeChart(v));
+//     catVars.forEach(v=> loadBarChart(v));
+
+//     // 2) 예측
+//     const form = document.getElementById('predictForm');
+//     form.addEventListener('submit', function(e){
+//       e.preventDefault();
+//       const Age = parseFloat(document.getElementById('ageInput').value||'0');
+//       const SBP = parseFloat(document.getElementById('sbpInput').value||'0');
+//       const DBP = parseFloat(document.getElementById('dbpInput').value||'0');
+//       const Pulse = parseFloat(document.getElementById('pulseInput').value||'0');
+//       const Breath = parseFloat(document.getElementById('breathInput').value||'0');
+//       const Temperature = parseFloat(document.getElementById('tempInput').value||'0');
+//       const SpO2 = parseFloat(document.getElementById('spo2Input').value||'0');
+//       const Sexuality = document.getElementById('sexInput').value; // M/F
+//       const Response = document.getElementById('respInput').value; // A/V/P/U
+
+//       fetch('/predict',{
+//         method:'POST',
+//         headers:{'Content-Type':'application/json'},
+//         body: JSON.stringify({Age,SBP,DBP,Pulse,Breath,Temperature,SpO2,Sexuality,Response})
+//       })
+//       .then(r=>r.json())
+//       .then(result=>{
+//         document.getElementById('survivalRateSpan').innerText = result.survival_rate;
+//         document.getElementById('predictResult').textContent =
+//           `예측된 생존 확률: ${result.survival_rate}%`;
+
+//         // userVals
+//         const numericVals = result.userVals.numeric;       // { PTMIHIBP, PTMILOBP, ... }
+//         const catVals = result.userVals.categorical;       // { PTMIBRTD, PTMISEXX, PTMIRESP }
+
+//         // 수치형 -> 수직선
+//         for(let varName in numericVals){
+//           const userVal = numericVals[varName];
+//           addVerticalLine('chart-'+varName, userVal);
+//         }
+//         // 범주형 -> re-draw bar with color array
+//         for(let varName in catVals){
+//           const catVal = catVals[varName]; // e.g. 5 or 'A'
+//           reloadBarWithHighlight(varName, catVal);
+//         }
+
+//         // SHAP -> bar chart
+//         drawShapBar(result.shap_values);
+//       })
+//       .catch(err=>console.error(err));
+//     });
+//   });
+
+//   // ========= 수치형 (KDE) =========
+//   function loadKdeChart(varName){
+//     fetch(`/kde_data/${varName}`)
+//       .then(res=>res.json())
+//       .then(data=>{
+//         if(data.error){ console.warn(data.error); return; }
+//         drawKde(varName, data);
+//       });
+//   }
+//   function drawKde(varName, kdeData){
+//     let trace = {
+//       x: kdeData.x,
+//       y: kdeData.y,
+//       mode: 'lines',
+//       line: { color:'#66b2ff', shape:'spline' },
+//       showlegend:false
+//     };
+//      // default range
+//      let xRange = [null,null];
+
+//     switch(varName){
+//       case "PTMIHIBP": // 수축기
+//         xRange=[0,250]; break;
+//       case "PTMILOBP": // 이완기
+//         xRange=[0,150]; break;
+//       case "PTMIPULS": // 맥박
+//         xRange=[0,200]; break;
+//       case "PTMIBRTH": // 호흡
+//         xRange=[0,40]; break;
+//       case "PTMIBDHT": // 체온
+//         xRange=[15,40]; break;
+//       case "PTMIVOXS": // 산소포화도
+//         xRange=[80,100]; break;
+//       default:
+//         xRange=[null,null];
+//     }
+//     let layout = {
+//       margin: { l:0, r:0, t:0, b:30 },
+//       xaxis: { range:xRange, title: HUMAN_LABELS[varName] || varName },
+//       yaxis:{
+//         visible:false,
+//         showgrid:false,
+//         zeroline:false
+//       },
+//       shapes:[]
+//     };
+//     Plotly.newPlot('chart-'+varName, [trace], layout);
+//   }
+
+//   // ========= 범주형 (Bar) =========
+//   function loadBarChart(varName){
+//     fetch(`/bar_data/${varName}`)
+//       .then(res=>res.json())
+//       .then(data=>{
+//         if(data.error){ console.warn(data.error); return; }
+//         drawBar(varName, data);
+//       });
+//   }
+//   function drawBar(varName, barData){
+//     // basic bar with single color
+//     let trace = {
+//       x: barData.categories,
+//       y: barData.counts,
+//       type:'bar',
+//       marker:{ color:'#ffa600' },
+//       showlegend:false
+//     };
+//     let layout = {
+//       margin: { l:40, r:20, t:20, b:40 },
+//       xaxis: { title: HUMAN_LABELS[varName] || varName },
+//       yaxis: {}
+//     };
+//     Plotly.newPlot('chart-'+varName, [trace], layout);
+//   }
+
+//   // re-draw bar with highlight
+//   function reloadBarWithHighlight(varName, catVal){
+//     // catVal is the int code from userVals
+//     // But bar_data has string categories
+
+//     fetch(`/bar_data/${varName}`)
+//       .then(r=>r.json())
+//       .then(data=>{
+//         let cats = data.categories; // e.g. ["1.0","2.0",... ] or ["-","A","P","U","V"]
+//         let cnts = data.counts;
+//         let colorArr = cats.map(()=> '#ffa600');
+
+//         // custom logic
+//         let catString; 
+//         if(varName==="PTMIBRTD"){
+//           catString = invMapPTMIBRTD(catVal); // e.g. 10 => "10.0"
+//         } else if(varName==="PTMIRESP"){
+//           catString = invMapPTMIRESP(catVal); // e.g. 2 => "P"
+//         } else {
+//           // e.g. PTMISEXX might be "1","2" => just do cats.indexOf(String(catVal)) 
+//           catString = String(catVal);
+//         }
+
+//         let idx = cats.indexOf(catString);
+//         if(idx>=0){
+//           colorArr[idx] = 'red';
+//         }
+
+//         let trace = {
+//           x: cats,
+//           y: cnts,
+//           type:'bar',
+//           marker:{ color: colorArr },
+//           showlegend:false
+//         };
+//         let layout = {
+//           margin:{l:40,r:20,t:20,b:40},
+//           xaxis:{ title: varName }
+//         };
+//         Plotly.newPlot(`chart-${varName}`, [trace], layout);
+//       });
+//   }
+
+
+//   // ========= 수직선 =========
+//   function addVerticalLine(divId, userVal){
+//     Plotly.relayout(divId, {
+//       shapes:[{
+//         type:'line',
+//         x0:userVal,
+//         x1:userVal,
+//         yref:'paper',
+//         y0:0, y1:1,
+//         line:{ color:'red', width:2, dash:'line'}
+//       }]
+//     });
+//   }
+
+//   // ========= SHAP =========
+//   function drawShapBar(shapVals){
+//     // shapVals = { "PTMIHIBP":..., "PTMILOBP":..., ... }
+//     let featNames = Object.keys(shapVals);
+//     let featValues = Object.values(shapVals);
+//     // color by sign
+//     let colors = featValues.map(v => v >=0 ? 'tomato':'steelblue');
+//     let trace = {
+//       x: featValues,
+//       y: featNames.map(fn => HUMAN_LABELS[fn] || fn),
+//       type:'bar',
+//       orientation:'h',
+//       marker:{ color:colors },
+//       showlegend:false
+//     };
+//     let layout = {
+//       margin:{ l:120, r:20, t:20, b:40 },
+//       xaxis:{ title:'SHAP value' },
+//       yaxis:{ automargin:true }
+//     };
+//     Plotly.newPlot('shapChart', [trace], layout);
+//   }
+</script>
+</body>
+</html>
