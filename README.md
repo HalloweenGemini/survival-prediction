@@ -25,9 +25,9 @@
 
 1. 필요한 패키지 설치:
 
-~~
+~~~bash
 pip install -r requirements.txt
-~~
+~~~
 
 2. 모델 파일 다운로드:
 - `.pkl` 훈련한 파일을 프로젝트 루트 디렉토리에 위치
@@ -36,9 +36,9 @@ pip install -r requirements.txt
 
 ### 1. 오프라인 데이터 준비
 
-~~
+~~~bash
 python offline_data_preparation.py
-~~
+~~~
 
 이 스크립트는:
 - 수치형 변수의 KDE 분포를 계산하여 JSON으로 저장
@@ -46,9 +46,9 @@ python offline_data_preparation.py
 
 ### 2. 서버 실행
 
-~~
+~~~bash
 python app.py
-~~
+~~~
 
 서버는 기본적으로 http://localhost:5001 에서 실행됩니다.
 
@@ -57,7 +57,7 @@ python app.py
 #### 예측 요청
 - POST `/predict`
 - 요청 예시:
-~~
+~~~bash
 {
   "Age": 70,
   "Sexuality": "M", 
@@ -69,10 +69,10 @@ python app.py
   "Temperature": 36.5,
   "SpO2": 98
 }
-~~
+~~~
 
 - 응답 예시:
-~~
+~~~bash
 {
   "survival_rate": 95.2,
   "shap_values": {
@@ -84,7 +84,7 @@ python app.py
     "categorical": {...}
   }
 }
-~~
+~~~
 
 #### 분포 데이터 요청
 - GET `/kde_data/<var_name>` : 수치형 변수의 KDE
@@ -102,27 +102,3 @@ python app.py
 자세한 평가 결과는 `evaluation.ipynb`에서 확인할 수 있습니다.
 
 ## 프로젝트 구조
-
-```
-.
-├── app.py                     # Flask 서버 
-├── offline_data_preparation.py # 데이터 전처리
-├── evaluation.py              # 모델 평가
-├── train.py                   # 모델 학습
-├── best_model_41.pkl          # 학습된 모델
-├── kde_data/                  # 수치형 변수 분포
-└── bar_data/                  # 범주형 변수 분포
-```
-
-
-## 라이선스
-
-MIT License
-
-## 기여 방법
-
-1. Fork the Project
-2. Create your Feature Branch
-3. Commit your Changes
-4. Push to the Branch
-5. Open a Pull Request
